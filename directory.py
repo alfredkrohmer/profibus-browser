@@ -2,6 +2,21 @@ import struct
 
 import util
 
+class Block:
+    BLOCK_INFO_FIELDS = [
+        "reserved",
+        "block_obj",
+        "parent_class",
+        "klass",
+        "dd_ref",
+        "dd_rev",
+        "profile",
+        "profile_rev",
+        "exec_time",
+        "num_param",
+        "address_of_view1",
+        "num_of_views"
+    ]
 
 class Directory:
     DIR_INFO_FIELDS = [
@@ -55,6 +70,7 @@ class Directory:
         self.fbs = self._read_blocks(fb_idx, fb_off, num_fb)
         self.los = self._read_blocks(lo_idx, lo_off, num_lo)
         
+        """
         for b in self.pbs:
             print("PB at %d/%d with %d params" % (b[0], b[1], b[2]))
             b = (b[0], b[1]+100, b[2])
@@ -69,6 +85,15 @@ class Directory:
             print("FB at %d/%d with %d params" % (b[0], b[1], b[2]))
         for b in self.los:
             print("LO at %d/%d with %d params" % (b[0], b[1], b[2]))
+        """
+    
+    def read_block(self, slot, idx):
+        if self.address == 7 and slot == 1 and idx == 14:
+            idx = 114
+        b = Block()
+        ds32 = self._r(slot, idx)
+        util.set_fields(b, struct.unpack(">BBBBIHHHBHHB", ds32), Block.BLOCK_INFO_FIELDS)
+        return b
     
     def _read_blocks(self, idx, off, num):
         off = (off - self.num_comp_list_dir_entry - 1)*4
