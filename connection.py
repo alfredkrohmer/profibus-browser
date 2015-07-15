@@ -18,25 +18,24 @@ class Connection:
         if cached and key in self.cache:
             return self.cache[key]
         
-        marker = random.randint(0x00, 0xff)
-        packet = struct.pack("BBBB", marker, address, slot, index)
+        for i in range(0, 3):
+            marker = random.randint(0x00, 0xff)
+            packet = struct.pack("BBBB", marker, address, slot, index)
+            
+            self.sock.send(packet)
+            try:
+                data = self.sock.recv(256)
+            except socket.timeout:
+                print("Timeout!", file=sys.stderr)
+                return b""
+            
+            # check marker
+            if data[0] != marker:
+                return b""
+            
+            data = data[1:]
+            if len(data) > 0:
+                break
         
-        print("Sending packet:", file=sys.stderr)
-        util.dump_hex(packet)
-        
-        self.sock.send(packet)
-        try:
-            data = self.sock.recv(256)
-        except socket.timeout:
-            print("Timeout!", file=sys.stderr)
-            return b""
-        
-        print("Received packet:", file=sys.stderr)
-        util.dump_hex(data)
-        
-        if data[0] != marker:
-            print("Received reply with wrong marker!", file=sys.stderr)
-            return b""
-        else:
-            self.cache[key] = data[1:]
-            return data[1:]
+        self.cache[key] = data
+        return data

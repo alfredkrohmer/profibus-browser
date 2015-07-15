@@ -1,5 +1,7 @@
 import struct
 
+
+from protocol import *
 import util
 
 class Block:
@@ -38,37 +40,37 @@ class Directory:
         self.los = []
     
     def _r(self, slot, idx):
-        return self.conn.readparam(self.address, slot, idx)
+        d = self.conn.readparam(self.address, slot, idx)
+        print(d)
+        return d
     
     def read(self):
         # Directory Object Header von Gerät holen
-        directory_object_header = struct.unpack(">HHHHHH", self._r(1, 0))
-        util.set_fields(self, directory_object_header, Directory.DIR_INFO_FIELDS)
+        self.doh = DirectoryObjectHeader(self._r(1, 0))
         
         # Directory Objects holen
-        composite_list_directory = self._r(1, 1)
+        cld = self._r(1, 1)
         
         pb_idx = pb_off = num_pb = 0
         tb_idx = tb_off = num_tb = 0
         fb_idx = fb_off = num_fb = 0
         lo_idx = lo_off = num_lo = 0
         
-        if self.num_comp_list_dir_entry > 0:
-            pb_idx, pb_off, num_pb = struct.unpack(">BBH", composite_list_directory[0:4])
+        if self.doh.num_comp_list_dir_entry > 0:
+            pb = CompositeListDirectoryEntries(cld[0:4])
+            self.pbs = self._read_blocks(pb)
 
-        if self.num_comp_list_dir_entry > 1:
-            tb_idx, tb_off, num_tb = struct.unpack(">BBH", composite_list_directory[4:8])
+        if self.doh.num_comp_list_dir_entry > 1:
+            tb = CompositeListDirectoryEntries(cld[4:8])
+            self.tbs = self._read_blocks(tb)
             
-        if self.num_comp_list_dir_entry > 2:
-            fb_idx, fb_off, num_fb = struct.unpack(">BBH", composite_list_directory[8:12])
+        if self.doh.num_comp_list_dir_entry > 2:
+            fb = CompositeListDirectoryEntries(cld[8:12])
+            self.fbs = self._read_blocks(fb)
             
-        if self.num_comp_list_dir_entry > 3:
-            lo_idx, lo_off, num_lo = struct.unpack(">BBH", composite_list_directory[12:16])
-        
-        self.pbs = self._read_blocks(pb_idx, pb_off, num_pb)
-        self.tbs = self._read_blocks(tb_idx, tb_off, num_tb)
-        self.fbs = self._read_blocks(fb_idx, fb_off, num_fb)
-        self.los = self._read_blocks(lo_idx, lo_off, num_lo)
+        if self.doh.num_comp_list_dir_entry > 3:
+            lo = CompositeListDirectoryEntries(cld[12:16])
+            self.los = self._read_blocks(lo)
         
         """
         for b in self.pbs:
@@ -86,23 +88,19 @@ class Directory:
         for b in self.los:
             print("LO at %d/%d with %d params" % (b[0], b[1], b[2]))
         """
+    def _read_blocks(self, cld_entry):
+        idx, off, num = cld_entry.idx, cld_entry.off, cld_entry.num
+        off = (off - 1)*4
+        blocks = self._r(1, idx)[off:off+num*4]
+        ret = []
+        for i in range(0, num):
+            ret.append(CompositeDirectoryEntries(blocks[i*4:(i+1)*4]))
+        return ret
     
     def read_block(self, slot, idx):
         if self.address == 7 and slot == 1 and idx == 14:
             idx = 114
-        b = Block()
-        ds32 = self._r(slot, idx)
-        util.set_fields(b, struct.unpack(">BBBBIHHHBHHB", ds32), Block.BLOCK_INFO_FIELDS)
-        return b
+        block = BlockInfo(self._r(slot, idx))
+        return block
     
-    def _read_blocks(self, idx, off, num):
-        off = (off - self.num_comp_list_dir_entry - 1)*4
-        blocks = self._r(1, idx)[off:off+num*4]
-        ret = []
-        for i in range(0, num):
-            ret.append(struct.unpack(">BBH", blocks[i*4:(i+1)*4]))
-        return ret
 
-    
-    def dir_info(self):
-        return util.get_fields_info(self, Directory.DIR_INFO_FIELDS)
