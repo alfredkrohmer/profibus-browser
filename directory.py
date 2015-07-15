@@ -91,6 +91,8 @@ class Directory:
     def _read_blocks(self, cld_entry):
         idx, off, num = cld_entry.idx, cld_entry.off, cld_entry.num
         off = (off - 1)*4
+        if self.address == 7:
+            off -= self.doh.num_comp_list_dir_entry*4
         blocks = self._r(1, idx)[off:off+num*4]
         ret = []
         for i in range(0, num):

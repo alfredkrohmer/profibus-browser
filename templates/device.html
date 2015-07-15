@@ -1,0 +1,43 @@
+<h1>Device at address {{addr}}</h1>
+
+<a href="/">Select another device</a>
+
+<ul>
+<li>Directory {{ d.doh.dir_id }}</li>
+<li>Revision: {{ d.doh.rev_num}}</li>
+<!--
+<li>Number of Directory Objects: {{ d.doh.num_dir_obj }}</li>
+<li>Number of Directory Entries: {{ d.doh.num_dir_entry }}</li>
+<li>First composition list directory entry: {{ d.doh.first_comp_list_dir_entry }}</li>
+<li>Number of composition list directory entries: {{ d.doh.num_comp_list_dir_entry }}</li>
+-->
+</ul>
+
+<h2>Blocks</h2>
+
+<ul>
+{% if d.pbs %}
+    <li>Physical Blocks:<ul>
+    {% for pb in d.pbs %}
+        <li><a href="/block?addr={{addr}}&slot={{pb.slot}}&idx={{pb.idx}}">PB {{loop.index0}} at slot {{pb.slot}}, index {{pb.idx}} ({{pb.num_params}} parameters)</a></li>
+    {% endfor %}
+    </ul></li>
+{% endif %}
+
+{% if d.tbs %}
+    <li>Transducer Blocks:<ul>
+    {% for tb in d.tbs %}
+        <li><a href="/block?addr={{addr}}&slot={{tb.slot}}&idx={{tb.idx}}">TB {{loop.index0}} at slot {{tb.slot}}, index {{tb.idx}} ({{tb.num_params}} parameters)</a></li>
+    {% endfor %}
+    </ul></li>
+{% endif %}
+
+{% if d.fbs %}
+    <li>Function Blocks:<ul>
+    {% for fb in d.fbs %}
+        <li><a href="/block?addr={{addr}}&slot={{fb.slot}}&idx={{fb.idx}}">FB {{loop.index0}} at slot {{fb.slot}}, index {{fb.idx}} ({{fb.num_params}} parameters)</a></li>
+    {% endfor %}
+    </ul></li>
+{% endif %}
+</ul>
+

@@ -1,0 +1,27 @@
+<h1>{{o[0]}}</h1>
+
+on <a href="/device?addr={{addr}}">Device at Address {{addr}}</a>, Slot {{slot}}, Index {{idx}}
+
+<ul>
+
+<li>Parent class: {{ b.parent_class }}</li>
+<li>Class: {{ b.klass }}</li>
+
+<li>Parent class: {{ o[1][b.parent_class][0] }}</li>
+<li>Class: {{ o[1][b.parent_class][1][b.klass] }}</li>
+<li>Profile: {{ b.profile }}</li>
+
+<!--
+<li>Device Description Reference: {{ b.dd_ref }}</li>
+<li>Device Description Revision: {{ b.dd_rev }}</li>
+<li>Profile revision: {{ b.profile_rev }}</li>
+<li>Execution time: {{ b.exec_time }}</li>
+<li>Number of parameters: {{ b.num_param }}</li>
+<li>Address of View 1: {{ b.address_of_view1 }}</li>
+<li>Number of Views: {{ b.num_of_views }}</li>
+-->
+
+{% for p, v in params.items() %}
+<li>{{p}}: {{v}}</li>
+{% endfor %}
+</ul>

@@ -1,84 +1,94 @@
-import cherrypy
+from struct import unpack
+
+from flask import Flask, request, render_template
 
 
 from protocol import *
 import directory
 
-class Browser(object):
-    def __init__(self, conn):
-        self.conn = conn
+
+app = Flask(__name__)
+conn = None
+
+
+objects = {
+    1: ("Physical Block", {
+        1: ("Transmitter", {250:"Default"})
+    }),
+    2: ("Function Block", {
+        1: ("Input", {1: "Analog Input"}),
+        3: ("Control", {1: "PID"}),
+        5: ("Calculation", {128: "Unknown"})
+    }),
+    3: ("Tranducer Block", {
+        1: ("Pressure", {4: "Pressure + Level + Flow"}),
+        2: ("Temperature", {2: "Resistance Thermometer"})
+    }),
+}
+
+units = {
+    1001: "°C",
+    1342: "%"
+}
+
+man = {
+    26: "ABB",
+    42: "Siemens"
+}
+
+
+@app.route("/")
+def index():
+    return render_template("select_device.html")
+
+@app.route("/device")
+def device():
+    addr = int(request.args.get('addr'))
     
-    @cherrypy.expose
-    def index(self):
-        return """
-<h1>Read Device Info</h1>
-<form action="/device" method="get">
-<label>Device ID:</label>
-<br/>
-<input name="addr" />
-<br/>
-<input type="submit" />
-</form>"""
-        
-    @cherrypy.expose
-    def device(self, addr):
-        addr = int(addr)
-        d = directory.Directory(self.conn, addr)
-        d.read()
-        resp = "<ul>"
-        resp += "<li>Directory ID: %d</li>" % d.doh.dir_id
-        resp += "<li>Revision: %d</li>" % d.doh.rev_num
-        resp += "<li>Number of Directory Objects: %d</li>" % d.doh.num_dir_obj
-        resp += "<li>Number of Directory Entries: %d</li>" % d.doh.num_dir_entry
-        resp += "<li>First composition list directory entry: %d</li>" % d.doh.first_comp_list_dir_entry
-        resp += "<li>Number of composition list directory entries: %d</li>" % d.doh.num_comp_list_dir_entry
-        if d.pbs:
-            resp += "<li>Physical Blocks:<ul>"
-            for i, pb in enumerate(d.pbs):
-                resp += "<li><a href=\"/pb?addr=%d&slot=%d&idx=%d&params=%d\">PB %d (Slot %d, Index %d, %d parameters)</a></li>" % (addr, pb.slot, pb.idx, pb.num_params, i, pb.slot, pb.idx, pb.num_params)
-            resp += "</ul></li>"
-        if d.tbs:
-            resp += "<li>Transducer Blocks:<ul>"
-            for i, tb in enumerate(d.tbs):
-                resp += "<li><a href=\"/tb?addr=%d&slot=%d&idx=%d&params=%d\">TB %d (Slot %d, Index %d, %d parameters)</a></li>" % (addr, tb.slot, tb.idx, tb.num_params, i, tb.slot, tb.idx, tb.num_params)
-            resp += "</ul></li>"
-        if d.fbs:
-            resp += "<li>Functional Blocks:<ul>"
-            for i, fb in enumerate(d.fbs):
-                resp += "<li><a href=\"/fb?addr=%d&slot=%d&idx=%d&params=%d\">FB %d (Slot %d, Index %d, %d parameters)</a></li>" % (addr, fb.slot, fb.idx, fb.num_params, i, fb.slot, fb.idx, fb.num_params)
-            resp += "</ul></li>"
-        resp += "</ul>"
-        return resp
+    d = directory.Directory(conn, addr)
+    d.read()
+    
+    return render_template("device.html", d=d, addr=addr)
 
-    @cherrypy.expose
-    def pb(self, addr, slot, idx, params):
-        addr = int(addr)
-        slot = int(slot)
-        idx = int(idx)
-        
-        d = directory.Directory(self.conn, addr)
-        b = d.read_block(slot, idx)
-        
-        resp = "<h1>Physical Block</h1> on <a href=\"/device?addr=%d\">Device at Address %d</a>, Slot %d, Index %d" % (addr, addr, slot, idx)
-        resp += "<ul>"
-        resp += "<li>Block Object: %d</li>" % b.block_obj
-        resp += "<li>Parent class: %d</li>" % b.parent_class
-        resp += "<li>Class: %d</li>" % b.klass
-        resp += "<li>Device Description Reference: %d</li>" % b.dd_ref
-        resp += "<li>Device Description Revision: %d</li>" % b.dd_rev
-        resp += "<li>Profile: %s</li>" % hex(b.profile)
-        resp += "<li>Profile revision: %s</li>" % hex(b.profile_rev)
-        resp += "<li>Execution time: %d</li>" % b.exec_time
-        resp += "<li>Number of parameters: %d</li>" % b.num_param
-        resp += "<li>Address of View 1: %d</li>" % b.address_of_view1
-        resp += "<li>Number of Views: %d</li>" % b.num_of_views
-        resp += "</ul>"
-        
-        return resp
+@app.route("/block")
+def pb():
+    addr = int(request.args.get('addr'))
+    slot = int(request.args.get('slot'))
+    idx = int(request.args.get('idx'))
+    
+    if idx in (14,):
+        idx += 100
+    
+    d = directory.Directory(conn, addr)
+    b = d.read_block(slot, idx)
+    print(b)
+    
+    params = OrderedDict()
+    
+    # Physical block
+    if b.block_obj == 1:
+        params["Manufacturer"] = man[unpack(">H", conn.readparam(addr, slot, idx + 10))[0]]
+        params["Device ID"] = conn.readparam(addr, slot, idx + 11).decode()
+    
+    # Function block
+    if b.block_obj == 2:
+        data = conn.readparam(addr, slot, idx + 10)
+        params["Out"], params["Status"] = unpack(">fB", data)
+        params["Unit"] = conn.readparam(addr, slot, idx + 35).decode()
+    
+    # Transducer block
+    if b.block_obj == 3:
+        if b.parent_class == 1:
+            off = 10
+        else:
+            off = 0
+        data = conn.readparam(addr, slot, idx + off + 8)
+        params["Out"], params["Status"] = unpack(">fB", data)
+        params["Unit"] = units[unpack(">H", conn.readparam(addr, slot, idx + off + 9))[0]]
+    
+    return render_template("block.html", slot=slot, idx=idx, o=objects[b.block_obj], b=b, addr=addr, params=params)
 
-    @cherrypy.expose
-    def tb(self, addr, slot, idx, params):
-        return self.pb(addr, slot, idx, params)
-
-def run_server(*args, **kwargs):
-    cherrypy.quickstart(Browser(*args, **kwargs))
+def run_server(c):
+    global conn
+    conn = c
+    app.run(debug=True)
