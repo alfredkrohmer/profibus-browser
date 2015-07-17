@@ -36,3 +36,9 @@ BlockInfo = make_packet("BlockInfo", (
     ("address_of_view1","H"),
     ("num_of_views",    "B")
 ), payload=False)
+
+PRIMARY_VALUE = 8
+PRIMARY_VALUE_UNIT = 9
+
+TRIMMED_VALUE = 15
+SENSOR_UNIT = 14

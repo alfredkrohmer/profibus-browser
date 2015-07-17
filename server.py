@@ -28,6 +28,7 @@ objects = {
 
 units = {
     1001: "°C",
+    1138: "mbar",
     1342: "%"
 }
 
@@ -51,7 +52,7 @@ def device():
     return render_template("device.html", d=d, addr=addr)
 
 @app.route("/block")
-def pb():
+def block():
     addr = int(request.args.get('addr'))
     slot = int(request.args.get('slot'))
     idx = int(request.args.get('idx'))
@@ -79,14 +80,22 @@ def pb():
     # Transducer block
     if b.block_obj == 3:
         if b.parent_class == 1:
-            off = 10
-        else:
-            off = 0
-        data = conn.readparam(addr, slot, idx + off + 8)
-        params["Out"], params["Status"] = unpack(">fB", data)
-        params["Unit"] = units[unpack(">H", conn.readparam(addr, slot, idx + off + 9))[0]]
+            params["Out"], params["Status"] = unpack(">fB", conn.readparam(addr, slot, idx + TRIMMED_VALUE, cached=False))
+            params["Unit"] = units[unpack(">H", conn.readparam(addr, slot, idx + SENSOR_UNIT))[0]]
+        if b.parent_class == 2:
+            params["Out"], params["Status"] = unpack(">fB", conn.readparam(addr, slot, idx + PRIMARY_VALUE, cached=False))
+            params["Unit"] = units[unpack(">H", conn.readparam(addr, slot, idx + PRIMARY_VALUE_UNIT))[0]]
     
     return render_template("block.html", slot=slot, idx=idx, o=objects[b.block_obj], b=b, addr=addr, params=params)
+
+
+@app.route("/read")
+def read():
+    addr = int(request.args.get('addr'))
+    slot = int(request.args.get('slot'))
+    idx = int(request.args.get('idx'))
+    
+    return to_hex(conn.readparam(addr, slot, idx, cached=False))
 
 def run_server(c):
     global conn
